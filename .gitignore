@@ -1,0 +1,6 @@
+# Only the game is published; scrapers, data and the browser profile stay local.
+/*
+!/docs/
+!/README.md
+!/.gitignore
+.DS_Store
