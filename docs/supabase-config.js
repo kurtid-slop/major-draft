@@ -8,6 +8,6 @@
 // Leave these empty to play offline with no leaderboard.
 
 window.MAJOR_DRAFT_DB = {
-  url: "https://pkhkxynbinwbgwcvlnnp.supabase.co",
-  key: "sb_publishable_2Gt_OWtLB1EegOtnafkqFQ_lpW-maj8"
+  url: "https://cmnksabniwknzmbpyeno.supabase.co",
+  key: "sb_publishable_CdAwxZ74rwDK1Dx_ttV9tQ_heDovc6P"
 };
