@@ -137,10 +137,9 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 /* Start page: leaderboard + your recent runs */
 .home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
 .home-col { display: grid; gap: 8px; align-content: start; min-width: 0; }
-.runs li { grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr); }
-.runs .pl { font: 600 11px/1.3 var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--tc) !important; }
-.runs .five { font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; }
-.runs .meta { grid-column: 2; font-size: 11.5px; color: var(--muted); }
+.lb .five { grid-column: 2 / -1; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; text-transform: none; letter-spacing: 0; font-family: var(--f-body); font-weight: 400; }
+.lb li span.pl { color: var(--tc); }
+.lb .meta { color: var(--muted); font-size: 11px; margin-left: 4px; }
 /* Stat pop-up on the results page */
 [data-pick] { cursor: help; }
 .slot[data-pick]:hover, .slot[data-pick]:focus-visible { border-color: var(--gold); }
@@ -214,8 +213,8 @@ svg text { font-family: var(--f-mono); }
       <ol class="lb" id="homeBoard"><li class="empty">Loading…</li></ol>
     </div>
     <div class="home-col">
-      <div class="eyebrow">Your recent runs</div>
-      <ol class="lb runs" id="homeRuns"></ol>
+      <div class="eyebrow">Latest runs · everyone</div>
+      <ol class="lb" id="homeRuns"><li class="empty">Loading…</li></ol>
     </div>
   </section>
   <section class="pgrid" id="players" aria-label="Players to sign"></section>
@@ -532,33 +531,36 @@ function roleHtml(p) {
   const sec = p[8] ? `<span class="sec"> · 2nd: ${esc(p[8])}</span>` : "";
   return `<span class="roles">${esc(p[7])}${p[9] ? " · " + esc(p[9]) : ""}${sec}</span>`;
 }
-// ---- Start page: leaderboard + this browser's recent runs
-const RUNS_KEY = "majorDraftRuns";
-function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY)) || []; } catch (e) { return []; } }
-function saveRun(run) { try { localStorage.setItem(RUNS_KEY, JSON.stringify([run, ...readRuns()].slice(0, 20))); } catch (e) {} }
-const boardCache = {};
-function renderHome() {
-  const runs = readRuns().slice(0, 6);
-  $("homeRuns").innerHTML = runs.length ? runs.map(r => {
-    const t = TIERS.find(x => x.name === r.placement) || TIERS[TIERS.length - 1];
-    const when = new Date(r.at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-    return `<li style="--tc:${t.c}"><span class="pl">${esc(r.placement)}</span><span class="five">${r.five.map(esc).join(", ")}</span><span class="meta">${esc(MODES[r.mode]?.name || r.mode)} mode · ${esc(when)}</span></li>`;
-  }).join("") : `<li class="empty">No runs yet. Spin to start your first draft.</li>`;
-
-  $("homeBoardTitle").textContent = `Leaderboard · ${MODES[S.mode].name} mode`;
-  if (!ONLINE) { $("homeBoard").innerHTML = `<li class="empty">The leaderboard isn't set up for this copy of the game.</li>`; return; }
-  const mode = S.mode, cached = boardCache[mode];
-  if (cached) showHomeBoard(cached);
-  if (!cached || Date.now() - cached.at > 60000) {
-    rpc("md_leaderboard", { p_mode: mode, p_limit: 10 })
-      .then(rows => { boardCache[mode] = { at: Date.now(), rows }; if (S.mode === mode && !$("home").hidden) showHomeBoard(boardCache[mode]); })
-      .catch(() => { if (!cached) $("homeBoard").innerHTML = `<li class="empty">Couldn't load the leaderboard. Check your connection and refresh.</li>`; });
-  }
+// ---- Start page: global leaderboard (selected mode) + latest runs from everyone
+const lineupText = r => Array.isArray(r.lineup) && r.lineup.length ? r.lineup.map(x => x.player).join(", ") : "";
+const tierColor = name => (TIERS.find(t => t.name === name) || TIERS[TIERS.length - 1]).c;
+function boardRows(rows, mine) {
+  return rows.map(r => `<li class="${mine && r.name === mine.name && r.rank === mine.rank ? "mine" : ""}" style="--tc:${tierColor(r.placement)}"><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("");
 }
-function showHomeBoard({ rows }) {
-  $("homeBoard").innerHTML = rows.length
-    ? rows.map(r => `<li><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span>${esc(r.placement)}</span></li>`).join("")
-    : `<li class="empty">No scores yet. Finish a draft and submit yours to be first.</li>`;
+function ago(ts) {
+  const s = Math.max(1, (Date.now() - new Date(ts)) / 1000);
+  return s < 3600 ? `${Math.round(s / 60) || 1} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+const homeCache = {};
+// fetch with a 60 s cache so re-renders (e.g. switching mode) don't spam the server
+function cached(key, load, show, fail) {
+  const c = homeCache[key];
+  if (c) show(c.rows);
+  if (!c || Date.now() - c.at > 60000) load().then(rows => { homeCache[key] = { at: Date.now(), rows }; if (!$("home").hidden) show(rows); }).catch(() => { if (!c) fail(); });
+}
+function renderHome() {
+  $("homeBoardTitle").textContent = `Leaderboard · ${MODES[S.mode].name} mode`;
+  if (!ONLINE) {
+    $("homeBoard").innerHTML = $("homeRuns").innerHTML = `<li class="empty">The leaderboard isn't set up for this copy of the game.</li>`;
+    return;
+  }
+  const mode = S.mode, failMsg = `<li class="empty">Couldn't load. Check your connection and refresh.</li>`;
+  cached("board:" + mode, () => rpc("md_leaderboard", { p_mode: mode, p_limit: 10 }),
+    rows => { if (S.mode !== mode) return; $("homeBoard").innerHTML = rows.length ? boardRows(rows) : `<li class="empty">No scores yet. Finish a draft and submit yours to be first.</li>`; },
+    () => { $("homeBoard").innerHTML = failMsg; });
+  cached("recent", () => rpc("md_recent_runs", { p_limit: 8 }),
+    rows => { $("homeRuns").innerHTML = rows.length ? rows.map(r => `<li style="--tc:${tierColor(r.placement)}"><span class="num">·</span><span>${esc(r.name)} <span class="meta">${esc(MODES[r.mode]?.name || r.mode)} · ${esc(ago(r.created_at))}</span></span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("") : `<li class="empty">No runs submitted yet.</li>`; },
+    () => { $("homeRuns").innerHTML = failMsg; });
 }
 
 // ---- Results page: hover (or focus / tap) a signed player to see their stats with the team they came from
@@ -600,7 +602,6 @@ function renderResult() {
   const g = finalGap(), tier = (S.placement && TIERS.find(t => t.name === S.placement)) || tierOf(g);
   if (S.scored == null) {
     S.prevBest = readBest(); if (S.prevBest == null || g > S.prevBest) writeBest(g); S.scored = g;
-    saveRun({ mode: S.mode, placement: tier.name, at: Date.now(), five: S.lineup.map(l => DATA[l.m].teams[l.t].p[l.p][0]) });
   }
   const isBest = S.prevBest == null || g > S.prevBest;
   const all = []; DATA.forEach(m => m.teams.forEach(t => all.push({ m, t })));
@@ -665,9 +666,8 @@ function setupBoard() {
 async function loadBoard(mine) {
   try {
     const rows = await rpc("md_leaderboard", { p_mode: S.mode, p_limit: 10 });
-    $("lbList").innerHTML = rows.length ? rows.map(r =>
-      `<li class="${mine && r.name === mine.name && r.rank === mine.rank ? "mine" : ""}"><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span>${esc(r.placement)}</span></li>`).join("")
-      : `<li class="empty">No scores yet. Submit yours to be first.</li>`;
+    $("lbList").innerHTML = rows.length ? boardRows(rows, mine) : `<li class="empty">No scores yet. Submit yours to be first.</li>`;
+    delete homeCache["board:" + S.mode]; delete homeCache.recent;   // start page refetches after a new score
   } catch (e) { $("lbList").innerHTML = `<li class="empty">Couldn't load the leaderboard. Check your connection and refresh.</li>`; }
 }
 
