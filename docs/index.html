@@ -134,6 +134,24 @@ button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 .lb li span:last-child { font: 600 11px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .lb li.mine { outline: 1px solid var(--gold); }
 .lb li.empty { display: block; color: var(--muted); }
+/* Start page: leaderboard + your recent runs */
+.home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.home-col { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.runs li { grid-template-columns: minmax(0, 8.5em) minmax(0, 1fr); }
+.runs .pl { font: 600 11px/1.3 var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--tc) !important; }
+.runs .five { font-size: 12.5px; color: var(--fg); overflow-wrap: anywhere; }
+.runs .meta { grid-column: 2; font-size: 11.5px; color: var(--muted); }
+/* Stat pop-up on the results page */
+[data-pick] { cursor: help; }
+.slot[data-pick]:hover, .slot[data-pick]:focus-visible { border-color: var(--gold); }
+tr[data-pick]:hover td, tr[data-pick]:focus-visible td { background: var(--panel-2); }
+tr[data-pick]:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.tip { position: fixed; z-index: 50; width: 250px; max-width: calc(100vw - 16px); background: var(--panel-2); border: 1px solid var(--gold); border-radius: 10px; padding: 12px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.5); display: grid; gap: 4px; pointer-events: none; font-size: 13px; }
+.tip b { font: 700 17px/1.1 var(--f-display); }
+.tip .from { color: var(--muted); font-size: 12px; }
+.tip dl { margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+.tip dt { color: var(--muted); }
+.tip dd { margin: 0; text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
 .result { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; }
 .verdict { display: grid; gap: 6px; text-align: center; justify-items: center; }
 .verdict .tier { font: 700 clamp(34px, 9vw, 56px)/.95 var(--f-display); text-transform: uppercase; color: var(--tc); }
@@ -157,6 +175,7 @@ svg text { font-family: var(--f-mono); }
   .pcard .nm { grid-area: nm; } .pcard .ct { grid-area: ct; } .pcard .tag { grid-area: tag; align-self: center; }
   .pcard dl { grid-column: 1 / -1; grid-template-columns: repeat(4, auto auto); justify-content: space-between; gap: 2px 6px; }
   .slot .stat, .slot .roles, .pcard .roles { grid-column: 1 / -1; }
+  .home { grid-template-columns: minmax(0, 1fr); }
   .slot { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; text-align: left; padding: 8px 12px; align-items: baseline; }
   .row { font-size: 21px; } .row.s { font-size: 17px; } .row.xs { font-size: 14px; }
 }
@@ -189,6 +208,16 @@ svg text { font-family: var(--f-mono); }
 
   <button class="spin" id="bSpin">Spin</button>
   <p class="hint" id="hint"></p>
+  <section class="home" id="home" aria-label="Past runs" hidden>
+    <div class="home-col">
+      <div class="eyebrow" id="homeBoardTitle">Leaderboard</div>
+      <ol class="lb" id="homeBoard"><li class="empty">Loading…</li></ol>
+    </div>
+    <div class="home-col">
+      <div class="eyebrow">Your recent runs</div>
+      <ol class="lb runs" id="homeRuns"></ol>
+    </div>
+  </section>
   <section class="pgrid" id="players" aria-label="Players to sign"></section>
 
   <section aria-label="Your lineup">
@@ -198,6 +227,7 @@ svg text { font-family: var(--f-mono); }
   </section>
 
   <section class="result" id="result" hidden></section>
+  <div class="tip" id="tip" role="tooltip" hidden></div>
 </div>
 
 <script src="supabase-config.js"></script>
@@ -429,7 +459,7 @@ function render() {
     const l = S.lineup[i];
     if (l) {
       const lm = DATA[l.m], lt = lm.teams[l.t], p = lt.p[l.p];
-      rh += `<div class="slot filled"><span class="who">${esc(p[0])}</span><span class="from">${esc(teamShort(lt.n))} · ${esc(majorShort(lm))}</span>${elite() && !done ? "" : roleHtml(p)}${elite() && !done ? "" : `<span class="stat">K/D ${p[3].toFixed(2)} · Rtg ${p[4].toFixed(2)}</span>`}</div>`;
+      rh += `<div class="slot filled" ${done ? `data-pick="${i}" tabindex="0" aria-describedby="tip"` : ""}><span class="who">${esc(p[0])}</span><span class="from">${esc(teamShort(lt.n))} · ${esc(majorShort(lm))}</span>${elite() && !done ? "" : roleHtml(p)}${elite() && !done ? "" : `<span class="stat">K/D ${p[3].toFixed(2)} · Rtg ${p[4].toFixed(2)}</span>`}</div>`;
     } else {
       rh += `<div class="slot empty ${i === S.round && !done ? "current" : ""}"><span class="who">${i === S.round && !done ? "Signing" : "Slot " + (i + 1)}</span></div>`;
     }
@@ -443,6 +473,12 @@ function render() {
     $("chem").className = "chem" + (c.notes.length ? "" : " ok");
     $("chem").innerHTML = c.notes.length ? `<b>Role clash:</b> ${c.notes.map(esc).join("; ")}. This will cost you placement.` : `<b>Chemistry:</b> no role clashes so far.`;
   }
+
+  // start page: leaderboard and recent runs, shown before the first spin
+  const home = S.round === 0 && S.phase === "spin" && !busy && !S.lineup.length && !S.major;
+  $("home").hidden = !home;
+  if (home) renderHome();
+  if (done) bindTips($("rack"));
 
   $("result").hidden = !done;
   if (done) renderResult();
@@ -496,6 +532,65 @@ function roleHtml(p) {
   const sec = p[8] ? `<span class="sec"> · 2nd: ${esc(p[8])}</span>` : "";
   return `<span class="roles">${esc(p[7])}${p[9] ? " · " + esc(p[9]) : ""}${sec}</span>`;
 }
+// ---- Start page: leaderboard + this browser's recent runs
+const RUNS_KEY = "majorDraftRuns";
+function readRuns() { try { return JSON.parse(localStorage.getItem(RUNS_KEY)) || []; } catch (e) { return []; } }
+function saveRun(run) { try { localStorage.setItem(RUNS_KEY, JSON.stringify([run, ...readRuns()].slice(0, 20))); } catch (e) {} }
+const boardCache = {};
+function renderHome() {
+  const runs = readRuns().slice(0, 6);
+  $("homeRuns").innerHTML = runs.length ? runs.map(r => {
+    const t = TIERS.find(x => x.name === r.placement) || TIERS[TIERS.length - 1];
+    const when = new Date(r.at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    return `<li style="--tc:${t.c}"><span class="pl">${esc(r.placement)}</span><span class="five">${r.five.map(esc).join(", ")}</span><span class="meta">${esc(MODES[r.mode]?.name || r.mode)} mode · ${esc(when)}</span></li>`;
+  }).join("") : `<li class="empty">No runs yet. Spin to start your first draft.</li>`;
+
+  $("homeBoardTitle").textContent = `Leaderboard · ${MODES[S.mode].name} mode`;
+  if (!ONLINE) { $("homeBoard").innerHTML = `<li class="empty">The leaderboard isn't set up for this copy of the game.</li>`; return; }
+  const mode = S.mode, cached = boardCache[mode];
+  if (cached) showHomeBoard(cached);
+  if (!cached || Date.now() - cached.at > 60000) {
+    rpc("md_leaderboard", { p_mode: mode, p_limit: 10 })
+      .then(rows => { boardCache[mode] = { at: Date.now(), rows }; if (S.mode === mode && !$("home").hidden) showHomeBoard(boardCache[mode]); })
+      .catch(() => { if (!cached) $("homeBoard").innerHTML = `<li class="empty">Couldn't load the leaderboard. Check your connection and refresh.</li>`; });
+  }
+}
+function showHomeBoard({ rows }) {
+  $("homeBoard").innerHTML = rows.length
+    ? rows.map(r => `<li><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span>${esc(r.placement)}</span></li>`).join("")
+    : `<li class="empty">No scores yet. Finish a draft and submit yours to be first.</li>`;
+}
+
+// ---- Results page: hover (or focus / tap) a signed player to see their stats with the team they came from
+function tipHtml(l) {
+  const m = DATA[l.m], t = m.teams[l.t], p = t.p[l.p];
+  return `<b>${esc(p[0])}</b><span class="from">${esc(t.n)} · ${esc(m.name)}</span>${roleHtml(p)}
+    <dl><dt>K/D</dt><dd>${p[3].toFixed(2)}</dd><dt>Rating ${m.ver}</dt><dd>${p[4].toFixed(2)}</dd>
+    <dt>K−D</dt><dd>${p[5] > 0 ? "+" : ""}${p[5]}</dd><dt>Maps</dt><dd>${p[6]}</dd>
+    <dt>Team finish</dt><dd>${esc(stageLabel(t))}</dd></dl>`;
+}
+function showTip(el) {
+  const l = S.lineup[+el.dataset.pick]; if (!l) return;
+  const tip = $("tip"); tip.innerHTML = tipHtml(l); tip.hidden = false; tip.dataset.for = el.dataset.pick + el.tagName;
+  const r = el.getBoundingClientRect(), w = tip.offsetWidth, hgt = tip.offsetHeight;
+  const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
+  const top = r.bottom + 8 + hgt > innerHeight ? Math.max(8, r.top - hgt - 8) : r.bottom + 8;
+  tip.style.left = left + "px"; tip.style.top = top + "px";
+}
+const hideTip = () => { $("tip").hidden = true; };
+function bindTips(root) {
+  root.querySelectorAll("[data-pick]").forEach(el => {
+    // mouseover (not mouseenter) also fires when the element appears under a still pointer
+    el.onmouseover = el.onmousemove = () => { if ($("tip").hidden || $("tip").dataset.for !== el.dataset.pick + el.tagName) showTip(el); };
+    el.onfocus = () => showTip(el);
+    el.onmouseleave = hideTip;
+    el.onblur = hideTip;
+    el.onclick = () => showTip(el);   // tap on phones
+  });
+}
+addEventListener("scroll", hideTip, { passive: true });
+document.addEventListener("click", e => { if (!e.target.closest("[data-pick]")) hideTip(); });
+
 const bestKey = () => "majorDraftBest-" + S.mode;
 function readBest() { try { const v = localStorage.getItem(bestKey()); return v == null ? null : +v; } catch (e) { return null; } }
 function writeBest(v) { try { localStorage.setItem(bestKey(), String(v)); } catch (e) {} }
@@ -503,14 +598,17 @@ function writeBest(v) { try { localStorage.setItem(bestKey(), String(v)); } catc
 function renderResult() {
   const chem = chemistry(lineupPlayers());
   const g = finalGap(), tier = (S.placement && TIERS.find(t => t.name === S.placement)) || tierOf(g);
-  if (S.scored == null) { S.prevBest = readBest(); if (S.prevBest == null || g > S.prevBest) writeBest(g); S.scored = g; }
+  if (S.scored == null) {
+    S.prevBest = readBest(); if (S.prevBest == null || g > S.prevBest) writeBest(g); S.scored = g;
+    saveRun({ mode: S.mode, placement: tier.name, at: Date.now(), five: S.lineup.map(l => DATA[l.m].teams[l.t].p[l.p][0]) });
+  }
   const isBest = S.prevBest == null || g > S.prevBest;
   const all = []; DATA.forEach(m => m.teams.forEach(t => all.push({ m, t })));
   const near = all.slice().sort((a, b) => Math.abs(a.t.g - g) - Math.abs(b.t.g - g)).slice(0, 5);
   const beat = all.filter(x => x.t.g < g).length;
-  const rows = S.lineup.map(l => {
+  const rows = S.lineup.map((l, i) => {
     const m = DATA[l.m], t = m.teams[l.t], p = t.p[l.p];
-    return `<tr><td>${esc(p[0])}</td><td>${esc(p[7])}${p[9] ? " · IGL" : ""}${p[8] ? ` <span class="sec">(2nd: ${esc(p[8])})</span>` : ""}</td><td>${esc(t.n)} · ${esc(m.city)}</td><td class="r num">${p[3].toFixed(2)}</td><td class="r num">${p[4].toFixed(2)}</td></tr>`;
+    return `<tr data-pick="${i}" tabindex="0" aria-describedby="tip"><td>${esc(p[0])}</td><td>${esc(p[7])}${p[9] ? " · IGL" : ""}${p[8] ? ` <span class="sec">(2nd: ${esc(p[8])})</span>` : ""}</td><td>${esc(t.n)} · ${esc(m.city)}</td><td class="r num">${p[3].toFixed(2)}</td><td class="r num">${p[4].toFixed(2)}</td></tr>`;
   }).join("");
   const nearRows = near.map(x => `<tr><td>${esc(x.t.n)}</td><td>${esc(x.m.city)}</td><td>${esc(stageLabel(x.t))}</td></tr>`).join("");
   $("result").innerHTML = `
@@ -538,8 +636,9 @@ function renderResult() {
       <div class="chartbox"><svg id="chart" role="img" aria-label="Strip chart of real Major teams by finish, weaker to stronger, with your lineup marked"></svg></div>
       <div class="legend" id="legend"></div></div>
     <p class="note">Your five are scored on how their K/D compared with the average team at each player's own Major, then lowered for role clashes (two main AWPers, three IGLs, three players in the same role, or no AWPer or IGL at all), then placed among every real Major team. Dynasty is the level of the teams that won back to back. The other bands sit halfway between neighbouring real finishes.</p>`;
-  $("bAgain").onclick = () => { S = fresh(S.mode); render(); window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" }); };
+  $("bAgain").onclick = () => { hideTip(); S = fresh(S.mode); render(); window.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" }); };
   renderChart(g);
+  bindTips($("result"));
   if (ONLINE) setupBoard();
 }
 
