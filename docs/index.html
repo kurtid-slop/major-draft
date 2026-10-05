@@ -21,6 +21,7 @@
   --fg: #e9edf3;
   --muted: #8b97a8;
   --gold: #e4b84a; --gold-ink: #1b1405;
+  --dynasty: #ff8a3d; --dynasty-hi: #ffd36b;   /* above Major Champion: hotter, brighter gold */
   --major: #8e44f2; --major-hi: #b37bff; --major-lo: #5d22b0;
   --team: #f0901e; --team-hi: #ffb455; --team-lo: #b45f06;
   --drum: #2a3442; --drum-hi: #46546a; --drum-lo: #121820;
@@ -154,6 +155,10 @@ tr[data-pick]:focus-visible { outline: 2px solid var(--gold); outline-offset: -2
 .result { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; }
 .verdict { display: grid; gap: 6px; text-align: center; justify-items: center; }
 .verdict .tier { font: 700 clamp(34px, 9vw, 56px)/.95 var(--f-display); text-transform: uppercase; color: var(--tc); }
+/* Dynasty outranks Major Champion, so it gets the top treatment */
+.verdict .tier.dynasty { background: linear-gradient(180deg, var(--dynasty-hi), var(--dynasty)); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 14px rgba(255, 138, 61, .45)); }
+.lb li.dynasty { box-shadow: inset 3px 0 0 var(--dynasty); }
+.lb li.dynasty span.pl { color: var(--dynasty); text-shadow: 0 0 8px rgba(255, 138, 61, .5); }
 .verdict .gap { font: 500 20px/1.2 var(--f-mono); }
 .verdict p { margin: 0; color: var(--muted); max-width: 56ch; }
 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -207,6 +212,14 @@ svg text { font-family: var(--f-mono); }
 
   <button class="spin" id="bSpin">Spin</button>
   <p class="hint" id="hint"></p>
+  <section class="pgrid" id="players" aria-label="Players to sign"></section>
+
+  <section aria-label="Your lineup">
+    <div class="eyebrow" style="margin-bottom:8px">Your lineup</div>
+    <div class="rack" id="rack"></div>
+    <p class="chem" id="chem" hidden></p>
+  </section>
+
   <section class="home" id="home" aria-label="Past runs" hidden>
     <div class="home-col">
       <div class="eyebrow" id="homeBoardTitle">Leaderboard</div>
@@ -216,13 +229,6 @@ svg text { font-family: var(--f-mono); }
       <div class="eyebrow">Latest runs · everyone</div>
       <ol class="lb" id="homeRuns"><li class="empty">Loading…</li></ol>
     </div>
-  </section>
-  <section class="pgrid" id="players" aria-label="Players to sign"></section>
-
-  <section aria-label="Your lineup">
-    <div class="eyebrow" style="margin-bottom:8px">Your lineup</div>
-    <div class="rack" id="rack"></div>
-    <p class="chem" id="chem" hidden></p>
   </section>
 
   <section class="result" id="result" hidden></section>
@@ -237,7 +243,7 @@ const DATA = [{"id":"1270","city":"Jönköping 2013","name":"DreamHack Winter 20
 // runners-up +12.5%, semifinal exits +11.5%, quarterfinal exits +5.4%, missed playoffs −10.0%.
 // Dynasty is set at the back-to-back average; the others sit at the midpoint between neighbouring finishes.
 const TIERS = [
-  { min: 28.9, name: "Dynasty", c: "var(--r-gold)", text: "Your lineup stacks up with the teams that won Majors back to back: fnatic 2015, Luminosity/SK 2016, Astralis 2018–19 and Vitality 2025." },
+  { min: 28.9, name: "Dynasty", c: "var(--dynasty)", text: "Your lineup stacks up with the teams that won Majors back to back: fnatic 2015, Luminosity/SK 2016, Astralis 2018–19 and Vitality 2025." },
   { min: 17.9, name: "Major Champion", c: "var(--gold)", text: "Your lineup sits in the range of real Major winners. You lift the trophy." },
   { min: 12.0, name: "Grand Finalist", c: "var(--r-red)", text: "Your lineup plays like a real runner-up. You reach the final and probably lose it." },
   { min: 8.45, name: "Semifinalist", c: "var(--r-pink)", text: "Your lineup plays like a real semifinalist. A deep run that stops one series short." },
@@ -535,7 +541,7 @@ function roleHtml(p) {
 const lineupText = r => Array.isArray(r.lineup) && r.lineup.length ? r.lineup.map(x => x.player).join(", ") : "";
 const tierColor = name => (TIERS.find(t => t.name === name) || TIERS[TIERS.length - 1]).c;
 function boardRows(rows, mine) {
-  return rows.map(r => `<li class="${mine && r.name === mine.name && r.rank === mine.rank ? "mine" : ""}" style="--tc:${tierColor(r.placement)}"><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("");
+  return rows.map(r => `<li class="${mine && r.name === mine.name && r.rank === mine.rank ? "mine" : ""} ${r.placement === "Dynasty" ? "dynasty" : ""}" style="--tc:${tierColor(r.placement)}"><span class="num">${r.rank}</span><span>${esc(r.name)}</span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("");
 }
 function ago(ts) {
   const s = Math.max(1, (Date.now() - new Date(ts)) / 1000);
@@ -559,7 +565,7 @@ function renderHome() {
     rows => { if (S.mode !== mode) return; $("homeBoard").innerHTML = rows.length ? boardRows(rows) : `<li class="empty">No scores yet. Finish a draft and submit yours to be first.</li>`; },
     () => { $("homeBoard").innerHTML = failMsg; });
   cached("recent", () => rpc("md_recent_runs", { p_limit: 8 }),
-    rows => { $("homeRuns").innerHTML = rows.length ? rows.map(r => `<li style="--tc:${tierColor(r.placement)}"><span class="num">·</span><span>${esc(r.name)} <span class="meta">${esc(MODES[r.mode]?.name || r.mode)} · ${esc(ago(r.created_at))}</span></span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("") : `<li class="empty">No runs submitted yet.</li>`; },
+    rows => { $("homeRuns").innerHTML = rows.length ? rows.map(r => `<li class="${r.placement === "Dynasty" ? "dynasty" : ""}" style="--tc:${tierColor(r.placement)}"><span class="num">·</span><span>${esc(r.name)} <span class="meta">${esc(MODES[r.mode]?.name || r.mode)} · ${esc(ago(r.created_at))}</span></span><span class="pl">${esc(r.placement)}</span>${lineupText(r) ? `<span class="five">${esc(lineupText(r))}</span>` : ""}</li>`).join("") : `<li class="empty">No runs submitted yet.</li>`; },
     () => { $("homeRuns").innerHTML = failMsg; });
 }
 
@@ -615,7 +621,7 @@ function renderResult() {
   $("result").innerHTML = `
     <div class="verdict" style="--tc:${tier.c}">
       <span class="eyebrow">${MODES[S.mode].name} mode · ${isBest ? "new personal best" : "best so far: " + tierOf(S.prevBest).name}</span>
-      <span class="tier">${tier.name}</span>
+      <span class="tier ${tier.name === "Dynasty" ? "dynasty" : ""}">${tier.name}</span>
       <p>${tier.text} It rates above ${beat} of the 384 real Major teams.</p>
       ${chem.notes.length
         ? `<p><b>Chemistry cost you:</b></p><ul class="chemlist">${chem.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>`
@@ -674,7 +680,7 @@ async function loadBoard(mine) {
 function renderChart(g) {
   const svg = $("chart");
   const rowsDef = [
-    ["Back-to-back", t => t.b2b, "var(--r-gold)"], ["Won", t => t.s === "Winner" && !t.b2b, "var(--gold)"],
+    ["Back-to-back", t => t.b2b, "var(--dynasty)"], ["Won", t => t.s === "Winner" && !t.b2b, "var(--gold)"],
     ["Runner-up", t => t.s === "Runner-up", "var(--r-red)"], ["Semifinal exit", t => t.s === "Semifinal exit", "var(--r-pink)"],
     ["Quarterfinal exit", t => t.s === "Quarterfinal exit", "var(--r-purple)"], ["Missed playoffs", t => t.s === "Missed playoffs", "var(--r-light)"],
   ];
