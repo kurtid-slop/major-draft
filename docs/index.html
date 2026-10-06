@@ -183,20 +183,66 @@ svg text { font-family: var(--f-mono); }
   .slot { min-height: 0; grid-template-columns: minmax(0, 1fr) auto; text-align: left; padding: 8px 12px; align-items: baseline; }
   .row { font-size: 21px; } .row.s { font-size: 17px; } .row.xs { font-size: 14px; }
 }
+/* Tabs */
+.tabs { display: inline-flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 16px; border-radius: 999px; font: 600 12.5px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+.tabs button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
+.tabs button:hover:not([aria-selected="true"]) { color: var(--fg); }
+.view { display: grid; gap: 22px; }
+.top-left { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+
+/* Team builder */
+.bteam { display: grid; gap: 10px; }
+.bslots { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.bslot { position: relative; background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; padding: 12px 8px; min-height: 92px; text-align: center; display: grid; align-content: center; gap: 3px; }
+.bslot.filled { border-style: solid; border-color: var(--team); }
+.bslot .who { font: 700 16px/1.15 var(--f-display); overflow-wrap: anywhere; }
+.bslot .from { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.bslot.empty .who { color: var(--muted); font: 500 13px/1.2 var(--f-body); }
+.bslot .x { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; }
+.bslot .x:hover, .bslot .x:focus-visible { background: var(--panel-2); color: var(--fg); }
+.brow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.field { flex: 1 1 200px; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; font: 500 14px/1.2 var(--f-body); }
+.field:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+select.field { flex: 0 1 230px; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
+.finder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+.plist, .vlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; align-content: start; max-height: 460px; overflow-y: auto; }
+.plist button, .vlist button { width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; color: var(--fg); }
+.plist button:hover, .vlist button:hover:not(:disabled), .plist button.on { border-color: var(--gold); }
+.plist b, .vlist b { font: 700 15px/1.2 var(--f-display); overflow-wrap: anywhere; }
+.plist small, .vlist small { color: var(--muted); font-size: 12px; }
+.vlist button:disabled { opacity: .45; cursor: not-allowed; }
+.vlist .cur { color: var(--team); font: 600 10.5px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; }
+.vhead { display: grid; gap: 2px; margin-bottom: 6px; }
+.vhead b { font: 700 20px/1.1 var(--f-display); }
+.bnote { margin: 0; color: var(--muted); font-size: 13px; }
+@media (max-width: 640px) {
+  .bslots { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .bslot { min-height: 0; text-align: left; padding: 10px 40px 10px 12px; }
+  .finder { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (prefers-reduced-motion: reduce) { .pcard { transition: none; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Major <span>Draft</span></h1>
+    <div class="top-left">
+      <h1>Major <span>Draft</span></h1>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button role="tab" id="tabDraft" aria-selected="true" aria-controls="viewDraft">Draft</button>
+        <button role="tab" id="tabBuild" aria-selected="false" aria-controls="viewBuild">Team builder</button>
+      </nav>
+    </div>
     <div class="top-right">
-      <span class="round">Round <b id="cRound">1/5</b></span>
+      <span class="round" id="draftRound">Round <b id="cRound">1/5</b></span>
       <div class="seg" role="radiogroup" aria-label="Game mode" id="modes"></div>
       <button class="sound" id="bSound" aria-pressed="true">Sound on</button>
     </div>
   </header>
 
+  <main class="view" id="viewDraft" role="tabpanel" aria-labelledby="tabDraft">
   <section class="machine" aria-live="polite">
     <div class="cell">
       <div class="frame"><span class="lbl">Major</span><div class="drum" id="drumM"><div class="strip"></div><div class="shade"></div></div></div>
@@ -232,6 +278,29 @@ svg text { font-family: var(--f-mono); }
   </section>
 
   <section class="result" id="result" hidden></section>
+  </main>
+
+  <main class="view" id="viewBuild" role="tabpanel" aria-labelledby="tabBuild" hidden>
+    <section class="bteam" aria-label="Your team">
+      <div class="brow">
+        <input class="field" id="bName" maxlength="32" placeholder="Name your team" aria-label="Team name" autocomplete="off">
+        <button class="respin" id="bShare" type="button">Copy share link</button>
+        <button class="respin" id="bClear" type="button">Clear team</button>
+      </div>
+      <div class="bslots" id="bSlots"></div>
+      <p class="bnote" id="bNote">Pick any five players from any Major, choosing which version of each player you want.</p>
+    </section>
+    <section aria-label="Find players">
+      <div class="brow" style="margin-bottom:10px">
+        <input class="field" id="bSearch" type="search" placeholder="Search players" aria-label="Search players" autocomplete="off">
+        <select class="field" id="bMajor" aria-label="Filter by Major"></select>
+      </div>
+      <div class="finder">
+        <ul class="plist" id="bPlayers" aria-label="Players"></ul>
+        <div><div id="bVersions"></div></div>
+      </div>
+    </section>
+  </main>
   <div class="tip" id="tip" role="tooltip" hidden></div>
 </div>
 
@@ -723,6 +792,117 @@ $("bSound").onclick = () => {
 S = fresh();
 renderSound();
 render();
+// ================= Team builder =================
+// Pick any five players and choose which version (team + Major) of each. Shows only names,
+// countries, teams and Majors: nothing that hints at the main game's grading.
+const BUILD_KEY = "majorDraftBuild";
+const PLAYERS = (() => {
+  const by = new Map();
+  DATA.forEach((m, mi) => m.teams.forEach((t, ti) => t.p.forEach((p, pi) => {
+    if (!by.has(p[1])) by.set(p[1], { id: p[1], versions: [] });
+    by.get(p[1]).versions.push({ m: mi, t: ti, p: pi });
+  })));
+  const list = [...by.values()];
+  for (const pl of list) {
+    pl.versions.sort((a, b) => DATA[b.m].date.localeCompare(DATA[a.m].date));
+    const latest = DATA[pl.versions[0].m].teams[pl.versions[0].t].p[pl.versions[0].p];
+    pl.name = latest[0]; pl.country = latest[2];
+    pl.names = [...new Set(pl.versions.map(v => DATA[v.m].teams[v.t].p[v.p][0].toLowerCase()))];
+  }
+  return list.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+})();
+const playerById = new Map(PLAYERS.map(pl => [pl.id, pl]));
+const vKey = v => `${DATA[v.m].id}.${DATA[v.m].teams[v.t].p[v.p][1]}`;
+function fromKey(k) {
+  const [eid, pid] = k.split(".");
+  const mi = DATA.findIndex(m => m.id === eid); if (mi < 0) return null;
+  for (let ti = 0; ti < DATA[mi].teams.length; ti++) {
+    const pi = DATA[mi].teams[ti].p.findIndex(p => String(p[1]) === pid);
+    if (pi >= 0) return { m: mi, t: ti, p: pi };
+  }
+  return null;
+}
+let B = { name: "", team: [null, null, null, null, null], open: null, q: "", major: "" };
+
+function saveBuild() { try { localStorage.setItem(BUILD_KEY, JSON.stringify({ name: B.name, team: B.team.map(v => v && vKey(v)) })); } catch (e) {} }
+function loadBuild(obj) {
+  if (!obj) return;
+  B.name = (obj.name || "").slice(0, 32);
+  B.team = [0, 1, 2, 3, 4].map(i => (obj.team && obj.team[i] && fromKey(obj.team[i])) || null);
+}
+function buildFromHash() {
+  const m = location.hash.match(/^#build=([^&]*)(?:&name=(.*))?$/);
+  if (!m) return false;
+  loadBuild({ team: decodeURIComponent(m[1]).split("_"), name: m[2] ? decodeURIComponent(m[2]) : "" });
+  return true;
+}
+
+function renderBuild() {
+  const versionLabel = v => `${DATA[v.m].teams[v.t].n} · ${majorShort(DATA[v.m])}`;
+  $("bName").value = B.name;
+  $("bSlots").innerHTML = B.team.map((v, i) => {
+    if (!v) return `<div class="bslot empty"><span class="who">Slot ${i + 1}</span></div>`;
+    const p = DATA[v.m].teams[v.t].p[v.p];
+    return `<div class="bslot filled"><button class="x" data-rm="${i}" aria-label="Remove ${esc(p[0])}">×</button><span class="who">${esc(p[0])}</span><span class="from">${esc(versionLabel(v))}</span></div>`;
+  }).join("");
+  $("bSlots").querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { B.team[+b.dataset.rm] = null; saveBuild(); renderBuild(); });
+  const count = B.team.filter(Boolean).length;
+  $("bNote").textContent = count === 5 ? "Your five is complete. Copy the share link to send it to someone."
+    : `Pick ${5 - count} more. Choose any player, then the version of them you want.`;
+
+  // player list
+  const q = B.q.trim().toLowerCase();
+  const inMajor = pl => !B.major || pl.versions.some(v => DATA[v.m].id === B.major);
+  const found = PLAYERS.filter(pl => inMajor(pl) && (!q || pl.names.some(n => n.includes(q))));
+  $("bPlayers").innerHTML = found.length ? found.slice(0, 60).map(pl =>
+    `<li><button data-pl="${pl.id}" class="${B.open === pl.id ? "on" : ""}"><b>${esc(pl.name)}</b><small>${pl.versions.length} version${pl.versions.length > 1 ? "s" : ""}</small><small>${esc(pl.country)}</small></button></li>`).join("")
+    + (found.length > 60 ? `<li class="bnote">${found.length - 60} more. Narrow the search.</li>` : "")
+    : `<li class="bnote">No players match.</li>`;
+  $("bPlayers").querySelectorAll("[data-pl]").forEach(b => b.onclick = () => { B.open = +b.dataset.pl; renderBuild(); });
+
+  // versions of the selected player
+  const pl = B.open != null && playerById.get(B.open);
+  if (!pl) { $("bVersions").innerHTML = `<p class="bnote">Select a player to see every team and Major they played.</p>`; return; }
+  const slotOf = B.team.findIndex(v => v && DATA[v.m].teams[v.t].p[v.p][1] === pl.id);
+  const full = count === 5 && slotOf < 0;
+  $("bVersions").innerHTML = `<div class="vhead"><b>${esc(pl.name)}</b><small class="bnote">${esc(pl.country)} · ${slotOf >= 0 ? "on your team; pick another version to swap" : full ? "your team is full; remove someone first" : "choose a version"}</small></div>
+    <ul class="vlist">${pl.versions.filter(v => !B.major || DATA[v.m].id === B.major).map(v => {
+      const m = DATA[v.m], t = m.teams[v.t], p = t.p[v.p], cur = slotOf >= 0 && vKey(B.team[slotOf]) === vKey(v);
+      return `<li><button data-v="${vKey(v)}" ${full || cur ? "disabled" : ""}><b>${esc(t.n)}</b>${cur ? `<span class="cur">On your team</span>` : `<small>${esc(m.date.slice(0, 4))}</small>`}<small>${esc(m.name)}${p[0] !== pl.name ? ` · as ${esc(p[0])}` : ""}</small></button></li>`;
+    }).join("")}</ul>`;
+  $("bVersions").querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
+    const v = fromKey(b.dataset.v);
+    const i = slotOf >= 0 ? slotOf : B.team.findIndex(x => !x);
+    if (i < 0) return;
+    B.team[i] = v; saveBuild(); renderBuild();
+  });
+}
+
+function setTab(which) {
+  const build = which === "build";
+  $("viewDraft").hidden = build; $("viewBuild").hidden = !build;
+  $("tabDraft").setAttribute("aria-selected", !build); $("tabBuild").setAttribute("aria-selected", build);
+  $("draftRound").hidden = $("modes").hidden = build;
+  hideTip();
+  if (build) renderBuild();
+}
+$("tabDraft").onclick = () => setTab("draft");
+$("tabBuild").onclick = () => setTab("build");
+$("bName").oninput = () => { B.name = $("bName").value.slice(0, 32); saveBuild(); };
+$("bSearch").oninput = () => { B.q = $("bSearch").value; renderBuild(); };
+$("bMajor").innerHTML = `<option value="">All Majors</option>` + DATA.slice().sort((a, b) => b.date.localeCompare(a.date)).map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
+$("bMajor").onchange = () => { B.major = $("bMajor").value; renderBuild(); };
+$("bClear").onclick = () => { B.team = [null, null, null, null, null]; saveBuild(); renderBuild(); };
+$("bShare").onclick = async () => {
+  const keys = B.team.filter(Boolean).map(vKey);
+  if (!keys.length) { $("bNote").textContent = "Add at least one player before sharing."; return; }
+  const url = `${location.href.split("#")[0]}#build=${keys.join("_")}${B.name ? "&name=" + encodeURIComponent(B.name) : ""}`;
+  try { await navigator.clipboard.writeText(url); $("bNote").textContent = "Share link copied."; }
+  catch (e) { $("bNote").textContent = url; }
+};
+try { loadBuild(JSON.parse(localStorage.getItem(BUILD_KEY))); } catch (e) {}
+if (buildFromHash()) { saveBuild(); setTab("build"); }
+
 </script>
 </body>
 </html>
