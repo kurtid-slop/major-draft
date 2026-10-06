@@ -204,7 +204,18 @@ svg text { font-family: var(--f-mono); }
 .brow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .field { flex: 1 1 200px; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; font: 500 14px/1.2 var(--f-body); }
 .field:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
-select.field { flex: 0 1 230px; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 34px; }
+/* Searchable dropdown */
+.combo { position: relative; flex: 0 1 220px; min-width: 0; }
+.combo-btn { width: 100%; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; }
+.combo-btn.set { border-color: var(--team); }
+.combo-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: max(100%, 280px); max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; box-shadow: 0 12px 30px rgba(0,0,0,.5); display: grid; gap: 6px; }
+.combo-pop .field { width: 100%; flex: none; }
+.combo-pop ul { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; display: grid; gap: 2px; }
+.combo-pop li button { width: 100%; text-align: left; border: 0; background: transparent; color: var(--fg); padding: 8px 10px; border-radius: 6px; font: 500 14px/1.25 var(--f-body); display: flex; justify-content: space-between; gap: 10px; }
+.combo-pop li button small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.combo-pop li button.active, .combo-pop li button:hover { background: var(--panel-2); }
+.combo-pop li button[aria-selected="true"] { color: var(--gold); }
+.combo-pop .none { color: var(--muted); font-size: 13px; padding: 8px 10px; }
 .finder { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
 .plist, .vlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; align-content: start; max-height: 460px; overflow-y: auto; }
 .plist button, .vlist button { width: 100%; text-align: left; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; color: var(--fg); }
@@ -220,6 +231,7 @@ select.field { flex: 0 1 230px; appearance: none; background-image: linear-gradi
   .bslots { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .bslot { min-height: 0; text-align: left; padding: 10px 40px 10px 12px; }
   .finder { grid-template-columns: minmax(0, 1fr); }
+  .combo { flex: 1 1 140px; }
 }
 
 @media (prefers-reduced-motion: reduce) { .pcard { transition: none; } }
@@ -293,7 +305,8 @@ select.field { flex: 0 1 230px; appearance: none; background-image: linear-gradi
     <section aria-label="Find players">
       <div class="brow" style="margin-bottom:10px">
         <input class="field" id="bSearch" type="search" placeholder="Search players" aria-label="Search players" autocomplete="off">
-        <select class="field" id="bMajor" aria-label="Filter by Major"></select>
+        <div class="combo" id="cMajor"></div>
+        <div class="combo" id="cTeam"></div>
       </div>
       <div class="finder">
         <ul class="plist" id="bPlayers" aria-label="Players"></ul>
@@ -822,7 +835,9 @@ function fromKey(k) {
   }
   return null;
 }
-let B = { name: "", team: [null, null, null, null, null], open: null, q: "", major: "" };
+let B = { name: "", team: [null, null, null, null, null], open: null, q: "", major: "", tf: "" };
+// a version passes the Major / Team filters
+const vPass = v => (!B.major || DATA[v.m].id === B.major) && (!B.tf || DATA[v.m].teams[v.t].n === B.tf);
 
 function saveBuild() { try { localStorage.setItem(BUILD_KEY, JSON.stringify({ name: B.name, team: B.team.map(v => v && vKey(v)) })); } catch (e) {} }
 function loadBuild(obj) {
@@ -852,8 +867,7 @@ function renderBuild() {
 
   // player list
   const q = B.q.trim().toLowerCase();
-  const inMajor = pl => !B.major || pl.versions.some(v => DATA[v.m].id === B.major);
-  const found = PLAYERS.filter(pl => inMajor(pl) && (!q || pl.names.some(n => n.includes(q))));
+  const found = PLAYERS.filter(pl => pl.versions.some(vPass) && (!q || pl.names.some(n => n.includes(q))));
   $("bPlayers").innerHTML = found.length ? found.slice(0, 60).map(pl =>
     `<li><button data-pl="${pl.id}" class="${B.open === pl.id ? "on" : ""}"><b>${esc(pl.name)}</b><small>${pl.versions.length} version${pl.versions.length > 1 ? "s" : ""}</small><small>${esc(pl.country)}</small></button></li>`).join("")
     + (found.length > 60 ? `<li class="bnote">${found.length - 60} more. Narrow the search.</li>` : "")
@@ -866,7 +880,7 @@ function renderBuild() {
   const slotOf = B.team.findIndex(v => v && DATA[v.m].teams[v.t].p[v.p][1] === pl.id);
   const full = count === 5 && slotOf < 0;
   $("bVersions").innerHTML = `<div class="vhead"><b>${esc(pl.name)}</b><small class="bnote">${esc(pl.country)} · ${slotOf >= 0 ? "on your team; pick another version to swap" : full ? "your team is full; remove someone first" : "choose a version"}</small></div>
-    <ul class="vlist">${pl.versions.filter(v => !B.major || DATA[v.m].id === B.major).map(v => {
+    <ul class="vlist">${pl.versions.filter(vPass).map(v => {
       const m = DATA[v.m], t = m.teams[v.t], p = t.p[v.p], cur = slotOf >= 0 && vKey(B.team[slotOf]) === vKey(v);
       return `<li><button data-v="${vKey(v)}" ${full || cur ? "disabled" : ""}><b>${esc(t.n)}</b>${cur ? `<span class="cur">On your team</span>` : `<small>${esc(m.date.slice(0, 4))}</small>`}<small>${esc(m.name)}${p[0] !== pl.name ? ` · as ${esc(p[0])}` : ""}</small></button></li>`;
     }).join("")}</ul>`;
@@ -890,8 +904,61 @@ $("tabDraft").onclick = () => setTab("draft");
 $("tabBuild").onclick = () => setTab("build");
 $("bName").oninput = () => { B.name = $("bName").value.slice(0, 32); saveBuild(); };
 $("bSearch").oninput = () => { B.q = $("bSearch").value; renderBuild(); };
-$("bMajor").innerHTML = `<option value="">All Majors</option>` + DATA.slice().sort((a, b) => b.date.localeCompare(a.date)).map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join("");
-$("bMajor").onchange = () => { B.major = $("bMajor").value; renderBuild(); };
+// ---- searchable dropdown: a button that opens a list with its own search box
+function makeCombo(root, { label, allLabel, search, options, get, set }) {
+  root.innerHTML = `<button type="button" class="field combo-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${esc(label)}"></button>
+    <div class="combo-pop" hidden><input class="field" type="search" placeholder="${esc(search)}" aria-label="${esc(search)}" autocomplete="off"><ul role="listbox" aria-label="${esc(label)}"></ul></div>`;
+  const btn = root.querySelector(".combo-btn"), pop = root.querySelector(".combo-pop"), input = pop.querySelector("input"), ul = pop.querySelector("ul");
+  let active = 0, shown = [];
+  const all = () => [{ value: "", label: allLabel }, ...options()];
+  const sync = () => { const o = all().find(o => o.value === get()); btn.textContent = o ? o.label : allLabel; btn.classList.toggle("set", !!get()); };
+  const draw = () => {
+    const q = input.value.trim().toLowerCase();
+    shown = all().filter(o => !q || o.label.toLowerCase().includes(q) || (o.sub || "").toLowerCase().includes(q));
+    active = Math.min(active, Math.max(0, shown.length - 1));
+    ul.innerHTML = shown.length ? shown.map((o, i) => `<li><button type="button" role="option" data-i="${i}" aria-selected="${o.value === get()}" class="${i === active ? "active" : ""}">${esc(o.label)}${o.sub ? `<small>${esc(o.sub)}</small>` : ""}</button></li>`).join("")
+      : `<li class="none">No matches</li>`;
+    ul.querySelectorAll("[data-i]").forEach(b => b.onclick = () => choose(shown[+b.dataset.i]));
+  };
+  const open = () => { document.querySelectorAll(".combo-pop").forEach(p => { if (p !== pop) p.hidden = true; }); pop.hidden = false; btn.setAttribute("aria-expanded", "true"); input.value = ""; active = 0; draw(); input.focus(); };
+  const close = (focusBtn) => { pop.hidden = true; btn.setAttribute("aria-expanded", "false"); if (focusBtn) btn.focus(); };
+  const choose = o => { if (!o) return; set(o.value); sync(); close(true); };
+  btn.onclick = () => (pop.hidden ? open() : close());
+  input.oninput = () => { active = 0; draw(); };
+  input.onkeydown = e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % Math.max(1, shown.length); draw();
+      ul.querySelector(".active")?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") { e.preventDefault(); choose(shown[active]); }
+    else if (e.key === "Escape") { e.preventDefault(); close(true); }
+  };
+  document.addEventListener("click", e => { if (!root.contains(e.target)) close(); });
+  sync();
+  return { sync };
+}
+const majorsByDate = DATA.slice().sort((a, b) => b.date.localeCompare(a.date));
+const teamCombo = makeCombo($("cTeam"), {
+  label: "Filter by team", allLabel: "All teams", search: "Search teams",
+  // teams at the chosen Major, or every team name across all Majors
+  options: () => {
+    const count = new Map();
+    for (const m of DATA) if (!B.major || m.id === B.major) for (const t of m.teams) count.set(t.n, (count.get(t.n) || 0) + 1);
+    return [...count].sort((a, b) => a[0].toLowerCase().localeCompare(b[0].toLowerCase()))
+      .map(([n, c]) => ({ value: n, label: n, sub: B.major ? "" : `${c} Major${c > 1 ? "s" : ""}` }));
+  },
+  get: () => B.tf, set: v => { B.tf = v; renderBuild(); },
+});
+makeCombo($("cMajor"), {
+  label: "Filter by Major", allLabel: "All Majors", search: "Search Majors",
+  options: () => majorsByDate.map(m => ({ value: m.id, label: m.name, sub: m.name.includes(m.date.slice(0, 4)) ? "" : m.date.slice(0, 4) })),
+  get: () => B.major,
+  set: v => {
+    B.major = v;
+    // drop a team filter that doesn't exist at the newly chosen Major
+    if (B.tf && v && !DATA.find(m => m.id === v).teams.some(t => t.n === B.tf)) B.tf = "";
+    teamCombo.sync(); renderBuild();
+  },
+});
 $("bClear").onclick = () => { B.team = [null, null, null, null, null]; saveBuild(); renderBuild(); };
 $("bShare").onclick = async () => {
   const keys = B.team.filter(Boolean).map(vKey);
