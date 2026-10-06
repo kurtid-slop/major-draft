@@ -227,6 +227,12 @@ svg text { font-family: var(--f-mono); }
 .vhead { display: grid; gap: 2px; margin-bottom: 6px; }
 .vhead b { font: 700 20px/1.1 var(--f-display); }
 .bnote { margin: 0; color: var(--muted); font-size: 13px; }
+.bstats { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 12px; font: 500 12px/1.4 var(--f-mono); font-variant-numeric: tabular-nums; color: var(--fg); }
+.bstats span { white-space: nowrap; }
+.bstats i { font-style: normal; color: var(--muted); font-family: var(--f-body); }
+.vlist .roles, .bslot .roles { grid-column: 1 / -1; }
+.vlist .fin { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+.bslot .bstats { justify-content: center; font-size: 11px; }
 @media (max-width: 640px) {
   .bslots { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .bslot { min-height: 0; text-align: left; padding: 10px 40px 10px 12px; }
@@ -806,8 +812,8 @@ S = fresh();
 renderSound();
 render();
 // ================= Team builder =================
-// Pick any five players and choose which version (team + Major) of each. Shows only names,
-// countries, teams and Majors: nothing that hints at the main game's grading.
+// Pick any five players and choose which version (team + Major) of each. Shows the same details
+// as a Normal-mode draft card (role, K/D, rating, K−D, maps, team finish), never the K/D gap.
 const BUILD_KEY = "majorDraftBuild";
 const PLAYERS = (() => {
   const by = new Map();
@@ -852,13 +858,17 @@ function buildFromHash() {
   return true;
 }
 
+// Normal-mode stats for one version of a player (same fields as the draft card)
+function statsHtml(m, p) {
+  return `<span class="bstats"><span><i>K/D</i> ${p[3].toFixed(2)}</span><span><i>Rating ${m.ver}</i> ${p[4].toFixed(2)}</span><span><i>K−D</i> ${p[5] > 0 ? "+" : ""}${p[5]}</span><span><i>Maps</i> ${p[6]}</span></span>`;
+}
 function renderBuild() {
   const versionLabel = v => `${DATA[v.m].teams[v.t].n} · ${majorShort(DATA[v.m])}`;
   $("bName").value = B.name;
   $("bSlots").innerHTML = B.team.map((v, i) => {
     if (!v) return `<div class="bslot empty"><span class="who">Slot ${i + 1}</span></div>`;
     const p = DATA[v.m].teams[v.t].p[v.p];
-    return `<div class="bslot filled"><button class="x" data-rm="${i}" aria-label="Remove ${esc(p[0])}">×</button><span class="who">${esc(p[0])}</span><span class="from">${esc(versionLabel(v))}</span></div>`;
+    return `<div class="bslot filled"><button class="x" data-rm="${i}" aria-label="Remove ${esc(p[0])}">×</button><span class="who">${esc(p[0])}</span><span class="from">${esc(versionLabel(v))}</span>${roleHtml(p)}<span class="bstats"><span><i>K/D</i> ${p[3].toFixed(2)}</span><span><i>Rtg</i> ${p[4].toFixed(2)}</span></span></div>`;
   }).join("");
   $("bSlots").querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { B.team[+b.dataset.rm] = null; saveBuild(); renderBuild(); });
   const count = B.team.filter(Boolean).length;
@@ -882,7 +892,7 @@ function renderBuild() {
   $("bVersions").innerHTML = `<div class="vhead"><b>${esc(pl.name)}</b><small class="bnote">${esc(pl.country)} · ${slotOf >= 0 ? "on your team; pick another version to swap" : full ? "your team is full; remove someone first" : "choose a version"}</small></div>
     <ul class="vlist">${pl.versions.filter(vPass).map(v => {
       const m = DATA[v.m], t = m.teams[v.t], p = t.p[v.p], cur = slotOf >= 0 && vKey(B.team[slotOf]) === vKey(v);
-      return `<li><button data-v="${vKey(v)}" ${full || cur ? "disabled" : ""}><b>${esc(t.n)}</b>${cur ? `<span class="cur">On your team</span>` : `<small>${esc(m.date.slice(0, 4))}</small>`}<small>${esc(m.name)}${p[0] !== pl.name ? ` · as ${esc(p[0])}` : ""}</small></button></li>`;
+      return `<li><button data-v="${vKey(v)}" ${full || cur ? "disabled" : ""}><b>${esc(t.n)}</b>${cur ? `<span class="cur">On your team</span>` : `<small>${esc(m.date.slice(0, 4))}</small>`}<small>${esc(m.name)}${p[0] !== pl.name ? ` · as ${esc(p[0])}` : ""}</small>${roleHtml(p)}${statsHtml(m, p)}<span class="fin">Team finish: ${esc(stageLabel(t))}</span></button></li>`;
     }).join("")}</ul>`;
   $("bVersions").querySelectorAll("[data-v]").forEach(b => b.onclick = () => {
     const v = fromKey(b.dataset.v);
